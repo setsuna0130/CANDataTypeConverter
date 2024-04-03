@@ -133,6 +133,12 @@ void MainWindow::on_pushButton_2_clicked()
         ui->label_6->setText("失败");
         return ;
     }
+
+    if(file.exists())
+    {
+        file.remove();
+    }
+
     file.open(QIODevice::ReadWrite);
 
 
@@ -262,9 +268,9 @@ bool MainWindow::readCantestCSV(QString filePath , QList<QStringList>& data)
     QTextStream stream(&file);
     stream.setCodec("GB18030");
     QStringList aaa = {"序号" ,"传输方向" , "时间戳","ID","帧格式","帧类型","长度","数据",""} ;
-
+    QStringList bbb = {"序号" ,"传输方向" , "时间标识","帧ID","帧格式","帧类型","数据长度","数据(HEX)"} ;
     QStringList headline = stream.readLine().trimmed().split(',');
-    if(aaa != headline)
+    if(aaa != headline && bbb != headline)
     {
         return false;
     }
@@ -371,7 +377,7 @@ bool MainWindow::cantestCSV2asc(QList<QStringList>& data , QVector<asc_type> & a
         row.ID.replace("0x","");
         if(data.at(i).at(1) == "接收")
             row.Dir = "Rx";
-        if(data.at(i).at(4) == "扩展帧")
+        if(data.at(i).at(4) == "扩展帧" || data.at(i).at(4) == "数据帧")
             row.Type ="d" ;
 
         if(data.at(i).at(6) == "0x00")

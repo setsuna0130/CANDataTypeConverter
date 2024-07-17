@@ -12,13 +12,35 @@
 
 QProcess process;
 
-uint8_t TransType = 0;
+//uint8_t TransType = 0;
 QString fileName="";
 QString SaveFileName="";
 
 
 QVector<asc_type> asc_data;
 QList<QStringList> output_data;
+quint8 uppversion;
+enum SantrollVersionType
+{
+    V166 = 0,
+    V1610
+}SantrollVersion;
+
+
+enum SourceFileType
+{
+    CantoolsTxt = 0,
+    SantrollTxt,
+    CantestTxt,
+    CantestCSV
+}TransType;
+
+enum OutPutFileType
+{
+    ASCFile = 0,
+    CSVFile
+}OutPutType;
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
@@ -106,78 +128,30 @@ void MainWindow::on_pushButton_clicked()
 }
 
 
-void MainWindow::on_comboBox_currentIndexChanged(int index)
-{
-    TransType = ui->comboBox->currentIndex();
-    qDebug()<<TransType<<Qt::endl;
-}
 
 
 void MainWindow::on_pushButton_2_clicked()
 {
-    if(fileName == "")
+
+    switch (OutPutType)
     {
-        QMessageBox::information(this,"提示信息","源文件名为空，请进行第二步选择源文件!");
-        return ;
-    }
-
-
-    SaveFileName = QFileDialog::getSaveFileName(this, tr("另存为"), "", tr(" asc格式文件 (*.asc)"));
-    qDebug()<<SaveFileName<<Qt::endl;
-
-
-    QFile file(SaveFileName);
-    if(SaveFileName == "")
-    {
-        QMessageBox::information(this,"提示信息","文件名为空，请输入文件名!");
-        ui->label_6->setText("失败");
-        return ;
-    }
-
-    if(file.exists())
-    {
-        file.remove();
-    }
-
-    file.open(QIODevice::ReadWrite);
-
-
-    QLocale locale = QLocale::English;
-    QString format = "ddd MMM dd hh:mm:ss AP yyyy";
-    QString currentTime =locale.toString(QDateTime::currentDateTime(), format) ;
-    qDebug()<<currentTime<<Qt::endl;
-    file.write("date "+currentTime.toUtf8()+"\n");
-    file.write("base hex timestamps absolute\n");
-
-    switch (TransType) {
-    case 0:
-        MainWindow::cantools2asc(output_data,asc_data);
+    case 0: CovertToASC();
         break;
-    case 1:
-        MainWindow::santrolltxt2asc(output_data,asc_data);
-        break;
-    case 2:
-        MainWindow::cantesttxt2asc(output_data,asc_data);
-        break;
-    case 3:
-        MainWindow::cantestCSV2asc(output_data,asc_data);
+    case 1: CovertToCSV();
         break;
     default:
         break;
     }
+//    if(false == CovertToASC())
+//    {
 
-    for(int i =0 ; i<asc_data.size();i++)
-    {
-        file.write(asc_data.at(i).timestamps.toUtf8()+'\t'+\
-                   asc_data.at(i).Channels.toUtf8()+' '+\
-                   asc_data.at(i).ID.toUtf8()+'\t'+\
-                   asc_data.at(i).Dir.toUtf8()+'\t'+\
-                   asc_data.at(i).Type.toUtf8()+'\t'+\
-                   asc_data.at(i).DLC.toUtf8()+'\t'+\
-                   asc_data.at(i).Data.toUtf8()+'\t'+'\n');
-    }
-    QMessageBox::information(this,"提示信息","转换成功");
-    ui->label_6->setText("成功");
+//    }
+//    else
+//    {
+//        QMessageBox::information(this,"提示信息","转换成功");
+//        ui->label_6->setText("成功");
+//    }
+
 }
 
 
@@ -212,9 +186,19 @@ bool MainWindow::readSantroll(QString filePath,  QList<QStringList>& data)
 
     QStringList aaa = {"110743.235", "04F0D000", "0000000000000000"};
     QStringList headline = stream.readLine().split('\t', Qt::SkipEmptyParts);
+
+    QStringList bbb = {"151758.285.120", "18EF0540", "680F00000000B415"};
+    QStringList headline2 = stream.readLine().split('\t', Qt::SkipEmptyParts);
+
     if(aaa.at(0).size() == headline.at(0).size() && aaa.size() == headline.size())
     {
+        uppversion = V1610;
         data.append(headline);
+    }
+    else if(bbb.at(0).size() == headline2.at(0).size() && bbb.size() == headline2.size())
+    {
+        uppversion = V166;
+        data.append(headline2);
     }
     else
     {
@@ -446,39 +430,212 @@ bool MainWindow::cantesttxt2asc(QList<QStringList>& data , QVector<asc_type> & a
 
 bool MainWindow::santrolltxt2asc(QList<QStringList>& data , QVector<asc_type> & asc_data)
 {
-    asc_data.clear();
-    QString time = data.at(0).at(0);
-    QDateTime start = QDateTime::fromString(time, "hhmmss.zzz");
 
+        asc_data.clear();
+        QString time = data.at(0).at(0);
 
-
-    asc_type row ;
-    for (int i = 0; i < data.size(); ++i)
-    {
-        QString timetmp = data.at(i).at(0);
-        QDateTime end = QDateTime::fromString(timetmp, "hhmmss.zzz");
-        qint64 totalmsec = start.msecsTo(end);
-
-        qint64 sec = totalmsec/1000;
-        qint64 msec = totalmsec%1000;
-        QString msec_str = QString::number(msec);
-        QString strNew = QString("%1").arg(msec_str.toInt(), 3, 10, QLatin1Char('0'));
-        row.timestamps = QString::number(sec) + "."+strNew;
-        row.Channels = "1";
-        row.ID = data.at(i).at(1);
-        row.Dir = "Rx";
-        row.Type ="d" ;
-        row.DLC = "8";
-        QString dataStr = data.at(i).at(2);
-        int n = dataStr.length();
-        while(n-2 > 0)
+        if(uppversion == V166)
         {
-            n = n - 2;
-            dataStr.insert(n," ");
+            time = time.left(10);
         }
-        row.Data = dataStr;
-        asc_data.append(row);
 
+        QDateTime start = QDateTime::fromString(time, "hhmmss.zzz");
+
+
+
+
+        asc_type row ;
+        for (int i = 0; i < data.size(); ++i)
+        {
+            QString timetmp = data.at(i).at(0);
+
+            if(uppversion == V166)
+            {
+                timetmp = timetmp.left(10);
+            }
+            QDateTime end = QDateTime::fromString(timetmp, "hhmmss.zzz");
+            qint64 totalmsec = start.msecsTo(end);
+
+            qint64 sec = totalmsec/1000;
+            qint64 msec = totalmsec%1000;
+            QString msec_str = QString::number(msec);
+            QString strNew = QString("%1").arg(msec_str.toInt(), 3, 10, QLatin1Char('0'));
+            row.timestamps = QString::number(sec) + "."+strNew;
+            row.Channels = "1";
+            row.ID = data.at(i).at(1);
+            row.Dir = "Rx";
+            row.Type ="d" ;
+            row.DLC = "8";
+            QString dataStr = data.at(i).at(2);
+            int n = dataStr.length();
+            while(n-2 > 0)
+            {
+                n = n - 2;
+                dataStr.insert(n," ");
+            }
+            row.Data = dataStr;
+            asc_data.append(row);
+
+        }
+
+
+}
+
+
+bool MainWindow::CovertToASC()
+{
+
+    if(fileName == "")
+    {
+        QMessageBox::information(this,"提示信息","源文件名为空，请进行第二步选择源文件!");
+        return false;
     }
-    return true ;
+
+
+    SaveFileName = QFileDialog::getSaveFileName(this, tr("另存为"), "", tr(" asc格式文件 (*.asc)"));
+    qDebug()<<SaveFileName<<Qt::endl;
+
+    if(SaveFileName == "")
+    {
+        QMessageBox::information(this,"提示信息","文件名为空，请输入文件名!");
+        ui->label_6->setText("失败");
+        return false;
+    }
+
+    QFile file(SaveFileName);
+
+    if(file.exists())
+    {
+        file.remove();
+    }
+
+    file.open(QIODevice::ReadWrite);
+
+
+    QLocale locale = QLocale::English;
+    QString format = "ddd MMM dd hh:mm:ss AP yyyy";
+    QString currentTime =locale.toString(QDateTime::currentDateTime(), format) ;
+    qDebug()<<currentTime<<Qt::endl;
+    file.write("date "+currentTime.toUtf8()+"\n");
+    file.write("base hex timestamps absolute\n");
+
+    switch (TransType) {
+    case 0:
+        MainWindow::cantools2asc(output_data,asc_data);
+        break;
+    case 1:
+        MainWindow::santrolltxt2asc(output_data,asc_data);
+        break;
+    case 2:
+        MainWindow::cantesttxt2asc(output_data,asc_data);
+        break;
+    case 3:
+        MainWindow::cantestCSV2asc(output_data,asc_data);
+        break;
+    default:
+        break;
+    }
+
+    for(int i =0 ; i<asc_data.size();i++)
+    {
+        file.write(asc_data.at(i).timestamps.toUtf8()+'\t'+\
+                        asc_data.at(i).Channels.toUtf8()+' '+\
+                          asc_data.at(i).ID.toUtf8()+'\t'+\
+                           asc_data.at(i).Dir.toUtf8()+'\t'+\
+                           asc_data.at(i).Type.toUtf8()+'\t'+\
+                           asc_data.at(i).DLC.toUtf8()+'\t'+\
+                           asc_data.at(i).Data.toUtf8()+'\t'+'\n');
+    }
+
+    QMessageBox::information(this,"提示信息","转换成功");
+    ui->label_6->setText("成功");
+    return true;
+}
+
+bool MainWindow::CovertToCSV()
+{
+    if(fileName == "")
+    {
+        QMessageBox::information(this,"提示信息","源文件名为空，请进行第二步选择源文件!");
+        return false;
+    }
+
+
+    SaveFileName = QFileDialog::getSaveFileName(this, tr("另存为"), "", tr(" csv格式文件 (*.csv)"));
+    qDebug()<<SaveFileName<<Qt::endl;
+
+    if(SaveFileName == "")
+    {
+        QMessageBox::information(this,"提示信息","文件名为空，请输入文件名!");
+        ui->label_6->setText("失败");
+        return false;
+    }
+
+    QFile file(SaveFileName);
+
+    if(file.exists())
+    {
+        file.remove();
+    }
+
+    file.open(QIODevice::ReadWrite);
+
+    switch (TransType) {
+    case 0:
+        MainWindow::cantools2asc(output_data,asc_data);
+        break;
+    case 1:
+        MainWindow::santrolltxt2asc(output_data,asc_data);
+        break;
+    case 2:
+        MainWindow::cantesttxt2asc(output_data,asc_data);
+        break;
+    case 3:
+        MainWindow::cantestCSV2asc(output_data,asc_data);
+        break;
+    default:
+        break;
+    }
+
+//    file.write(QString("date ")+ QString("\n"));
+    for(int i =0 ; i<asc_data.size();i++)
+    {
+//        QString datatemp = asc_data.at(i).Data;
+//        datatemp=datatemp.replace(" ", ",");
+
+//        asc_type temp = {asc_data.at(i).timestamps,\
+//                         asc_data.at(i).Channels,\
+//                         asc_data.at(i).ID,\
+//                        asc_data.at(i).Dir,\
+//                        asc_data.at(i).Type,\
+//                        asc_data.at(i).DLC,\
+//                         datatemp };
+//        asc_data.replace(i,temp);
+        file.write( asc_data.at(i).timestamps.toUtf8()+','+\
+                    asc_data.at(i).Channels.toUtf8()+','+\
+                    asc_data.at(i).ID.toUtf8()+','+\
+                    asc_data.at(i).Dir.toUtf8()+','+\
+                    asc_data.at(i).Type.toUtf8()+','+\
+                    asc_data.at(i).DLC.toUtf8()+','+\
+                    asc_data.at(i).Data.toUtf8()+','+'\n');
+    }
+
+    file.close();
+
+    QMessageBox::information(this,"提示信息","转换成功");
+    ui->label_6->setText("成功");
+    return true;
+}
+
+
+void MainWindow::on_comboBox_2_currentIndexChanged(int index)
+{
+    OutPutType = (OutPutFileType)ui->comboBox_2->currentIndex();
+    qDebug()<< OutPutType;
+}
+
+void MainWindow::on_comboBox_currentIndexChanged(int index)
+{
+    TransType = (SourceFileType)ui->comboBox->currentIndex();
+    qDebug()<<TransType<<Qt::endl;
 }

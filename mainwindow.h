@@ -40,12 +40,17 @@ public:
     bool cantestCSV2asc(QList<QStringList>& data , QVector<asc_type> & asc_data);
     bool cantesttxt2asc(QList<QStringList>& data , QVector<asc_type> & asc_data);
     bool santrolltxt2asc(QList<QStringList>& data , QVector<asc_type> & asc_data);
+
+    bool CovertToASC();
+    bool CovertToCSV();
 private slots:
     void on_pushButton_clicked();
 
     void on_comboBox_currentIndexChanged(int index);
 
     void on_pushButton_2_clicked();
+
+    void on_comboBox_2_currentIndexChanged(int index);
 
 private:
     Ui::MainWindow *ui;
